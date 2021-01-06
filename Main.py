@@ -10,36 +10,49 @@ class IBird:
         self.Bird_DownFlap = pygame.image.load("sprites\\yellowbird-downflap.png")
         self.Bird_MidFlap = pygame.image.load("sprites\\yellowbird-midflap.png")
         self.Bird_UpFlap = pygame.image.load("sprites\\yellowbird-upflap.png")
-        self.Bird_rect = self.Bird_MidFlap.get_rect(center=(370/3-33,570/2))
+        self.Bird_rect = self.Bird_MidFlap.get_rect(center=(370*0.25,570/2))
         self.selected_bird = self.Bird_MidFlap
         self.R = None
 
+class pipe():
+    def __init__(self,bottom_rect,top_rect):
+        self.bottom_rect = bottom_rect
+        self.top_rect = top_rect
+        self.vel = 2.05
+        self.passed = False
+    def move(self):
+        self.bottom_rect.centerx -= self.vel
+        self.top_rect.centerx -= self.vel
+        screen.blit(Pipe,self.top_rect)
+        screen.blit(flip_pipe,self.bottom_rect)
+
+
 def draw_bird(Bird,gravity):
+    global score,Alive
     x = lambda:pygame.transform.rotate(Bird.selected_bird,-gravity * 3.25)
     Bird.R = x()
     gravity += strength
     Bird.Bird_rect.centery += gravity
-
+    for Pipe in Pipe_List:
+        if Bird.Bird_rect.centerx > Pipe.top_rect.centerx and Pipe.passed == False:
+            score += 1
+            score_sound.play()
+            Pipe.passed = True
+        if Bird.Bird_rect.colliderect(Pipe.top_rect) or Bird.Bird_rect.colliderect(Pipe.bottom_rect):
+            death_sound.play()
+            Alive = False
     if Bird.moving_down:
         Bird.selected_bird = Bird.Bird_DownFlap
     Bird.moving_down = True
     screen.blit(Bird.R,Bird.Bird_rect)
     return gravity
 
-def MovingPipe(Pipe_List):
-    global Alive
-    for Pipe_rect in Pipe_List:
-        Pipe_rect.centerx -= 2.05
-    for Pipe_rect in Pipe_List:
-        if Pipe_rect.bottom >= 570:
-            screen.blit(Pipe,Pipe_rect)
-        else:
-            screen.blit(flip_pipe,Pipe_rect)
-        if Pipe_rect.colliderect(Bird.Bird_rect):
-            death_sound.play()
-            Alive = False
-
-    return Pipe_List
+def MovingPipe():
+    for x,Pipe in enumerate(Pipe_List):
+        if Pipe.top_rect.right <= 0 and Pipe.bottom_rect.right <= 0:
+            Pipe_List.pop(x)
+    for Pipe in Pipe_List:
+        Pipe.move()
 
 def MakePipe():
     y = random.randint(415,533)
@@ -48,12 +61,9 @@ def MakePipe():
     return new,down_new
 
 def Render():
-    if Alive:
-        ToRender = Score_font.render(f"Score: {int(score)}",True,(255,255,255))
-        screen.blit(ToRender,(Width/2-35,42))
-    elif not Alive:
-        ToRender1 = Score_font.render(f"Score: {int(score)}",True,(255,255,255))
-        screen.blit(ToRender1,(Width/2-35,42))
+    ToRender1 = Score_font.render(f"Score: {int(score)}",True,(255,255,255))
+    screen.blit(ToRender1,(Width/2-35,42))
+    if not Alive:
         ToRender2 = Score_font.render("Press space to play again",True,(255,255,255))
         screen.blit(ToRender2,(30,Height-Floor.get_height()-25))
 
@@ -70,7 +80,6 @@ screen = pygame.display.set_mode((Width,Height))
 death_sound = pygame.mixer.Sound("sound\\die.wav")
 wing_sound =  pygame.mixer.Sound("sound\\wing.wav")
 score_sound =  pygame.mixer.Sound("sound\\point.wav")
-score_timer = 0
 
 Background = pygame.image.load("sprites\\background-day.png").convert()
 Background = pygame.transform.scale(Background, (Width, Height))
@@ -90,15 +99,12 @@ Bird = IBird()
 
 while True:
     Clock.tick(60)
-    if score_timer >= 60*2:
-        score_timer = 0
-        score_sound.play()
-        score += 1
     for event in pygame.event.get():
         if event.type == 12:
             exit()
         if event.type == SPAWNPIPE and Alive:
-            Pipe_List.extend(MakePipe())
+            rects = MakePipe()
+            Pipe_List.append(pipe(rects[1],rects[0]))
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE and Alive:
@@ -118,14 +124,13 @@ while True:
 
     screen.blit(Background,(0,0))
     if Alive:
-        score_timer += 1
         if gravity < 0:
             Bird.moving_down = False
         gravity = draw_bird(Bird,gravity)
         if Bird.Bird_rect.bottom >= Height-Floor.get_height():
             death_sound.play()
             Alive = False
-        Pipe_List = MovingPipe(Pipe_List)
+        MovingPipe()
     else:
         pass
     Floor_x -= 2.1
